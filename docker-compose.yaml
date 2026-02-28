@@ -10,6 +10,18 @@ services:
       - ./cassettes:/app/cassettes
       - ./vcr-proxy.yaml:/app/vcr-proxy.yaml:ro
 
+  vcr-forward-proxy:
+    build: .
+    ports:
+      - "8888:8888"
+      - "8082:8081"
+    environment:
+      VCR_MODE: spy
+      VCR_FORWARD_PROXY_PORT: "8888"
+    volumes:
+      - ./cassettes:/app/cassettes
+    command: ["uv", "run", "vcr-forward-proxy"]
+
   tests-ci:
     build:
       context: .
