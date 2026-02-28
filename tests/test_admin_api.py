@@ -100,11 +100,14 @@ async def test_delete_all_cassettes(admin_client: httpx.AsyncClient, handler: Pr
             vcr_proxy_version="1.0.0",
         ),
         request=RecordedRequest(
-            method="GET", path="/api/v1/users", query={},
+            method="GET",
+            path="/api/v1/users",
+            query={},
             headers={"accept": "application/json"},
         ),
         response=RecordedResponse(
-            status_code=200, headers={"content-type": "application/json"},
+            status_code=200,
+            headers={"content-type": "application/json"},
             body="[]",
         ),
     )

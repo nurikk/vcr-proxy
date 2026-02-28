@@ -21,9 +21,7 @@ def setup_logging(level: str = "info", fmt: str = "json") -> None:
 
     structlog.configure(
         processors=processors,
-        wrapper_class=structlog.make_filtering_bound_logger(
-            structlog.stdlib.NAME_TO_LEVEL[level]
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(structlog.stdlib.NAME_TO_LEVEL[level]),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=True,

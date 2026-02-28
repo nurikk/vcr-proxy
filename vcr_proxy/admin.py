@@ -65,10 +65,7 @@ def create_admin_app(handler: ProxyHandler) -> FastAPI:
     @admin.get("/api/cassettes/{domain}", response_model=list[CassetteInfo])
     async def list_domain_cassettes(domain: str) -> list[CassetteInfo]:
         files = handler.storage.list_cassettes(domain=domain)
-        return [
-            CassetteInfo(domain=domain, filename=f.name, cassette_id=f.stem)
-            for f in files
-        ]
+        return [CassetteInfo(domain=domain, filename=f.name, cassette_id=f.stem) for f in files]
 
     @admin.delete("/api/cassettes", response_model=DeleteResponse)
     async def delete_all_cassettes() -> DeleteResponse:
