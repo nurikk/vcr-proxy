@@ -5,8 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from vcr_proxy.models import ProxyMode, ProxyStats
-from vcr_proxy.proxy import ProxyHandler
+from vcr_proxy.models import HandlerProtocol, ProxyMode, ProxyStats
 
 
 class ModeRequest(BaseModel):
@@ -27,7 +26,7 @@ class CassetteInfo(BaseModel):
     cassette_id: str
 
 
-def create_admin_app(handler: ProxyHandler) -> FastAPI:
+def create_admin_app(handler: HandlerProtocol) -> FastAPI:
     """Create the admin API FastAPI app."""
     admin = FastAPI(title="VCR Proxy Admin")
 

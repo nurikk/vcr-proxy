@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from vcr_proxy.storage import CassetteStorage
 
 
 class ProxyMode(StrEnum):
@@ -86,6 +89,22 @@ class RouteMatchingOverride(BaseModel):
     route: RouteMatchRule
     matched: MatchedFields = MatchedFields()
     ignore: RouteIgnoreConfig = RouteIgnoreConfig()
+
+
+# --- Handler protocol ---
+
+
+@runtime_checkable
+class HandlerProtocol(Protocol):
+    """Structural type shared by ProxyHandler and VCRAddon."""
+
+    mode: ProxyMode
+    storage: CassetteStorage
+    stats_total: int
+    stats_hits: int
+    stats_misses: int
+    stats_recorded: int
+    stats_errors: int
 
 
 # --- Stats ---
