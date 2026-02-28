@@ -1,7 +1,5 @@
 """Cassette storage: save, load, list, and delete cassettes on disk."""
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
 

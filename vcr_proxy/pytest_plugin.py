@@ -1,7 +1,5 @@
 """pytest plugin providing session-scoped VCR Proxy fixtures."""
 
-from __future__ import annotations
-
 import os
 import tomllib
 from pathlib import Path

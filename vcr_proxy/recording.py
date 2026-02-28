@@ -1,7 +1,5 @@
 """Shared recording utilities for building cassette data from raw HTTP."""
 
-from __future__ import annotations
-
 import base64
 from urllib.parse import parse_qs
 

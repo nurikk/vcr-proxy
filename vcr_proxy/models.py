@@ -1,7 +1,5 @@
 """Pydantic models for VCR Proxy."""
 
-from __future__ import annotations
-
 from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable

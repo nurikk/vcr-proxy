@@ -1,7 +1,5 @@
 """Admin API for runtime management."""
 
-from __future__ import annotations
-
 from pathlib import Path
 
 from fastapi import FastAPI

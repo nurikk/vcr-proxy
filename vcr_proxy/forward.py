@@ -1,7 +1,5 @@
 """Forward proxy addon for mitmproxy — record/replay/spy modes."""
 
-from __future__ import annotations
-
 import base64
 from datetime import UTC, datetime
 from urllib.parse import urlparse

@@ -1,7 +1,5 @@
 """Route config auto-generation and loading."""
 
-from __future__ import annotations
-
 import json
 from pathlib import Path
 
@@ -26,7 +24,7 @@ def _extract_body_fields(body: str | None, content_type: str | None) -> list[str
             parsed = json.loads(body)
             if isinstance(parsed, dict):
                 return sorted(parsed.keys())
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError, TypeError:
             pass
 
     if "application/x-www-form-urlencoded" in content_type:

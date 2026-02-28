@@ -1,7 +1,5 @@
 """Entrypoint for the mitmproxy-based forward proxy."""
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import threading

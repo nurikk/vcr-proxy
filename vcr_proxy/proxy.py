@@ -1,7 +1,5 @@
 """Core proxy logic: record, replay, spy modes."""
 
-from __future__ import annotations
-
 import base64
 from datetime import UTC, datetime
 
