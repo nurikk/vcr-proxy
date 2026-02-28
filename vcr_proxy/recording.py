@@ -10,10 +10,7 @@ REDACTED = "[REDACTED]"
 
 def redact_headers(headers: dict[str, str], sensitive: frozenset[str]) -> dict[str, str]:
     """Replace values of sensitive headers with a redaction placeholder."""
-    return {
-        k: REDACTED if k.lower() in sensitive else v
-        for k, v in headers.items()
-    }
+    return {k: REDACTED if k.lower() in sensitive else v for k, v in headers.items()}
 
 
 def is_text_content(content_type: str | None) -> bool:
