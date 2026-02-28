@@ -56,6 +56,85 @@ uv sync
 uv run uvicorn vcr_proxy.main:app --port 8080
 ```
 
+## Proxy Modes
+
+VCR Proxy supports two proxy architectures:
+
+| Architecture | How it works | Use when |
+|-------------|--------------|----------|
+| **Reverse proxy** | Clients point at VCR Proxy with path prefixes (`/api/...`) | You control the client's base URL |
+| **Forward proxy** | Clients set `HTTP_PROXY`/`HTTPS_PROXY` env vars | You want zero code changes, or need to intercept HTTPS |
+
+### Forward Proxy (HTTP + HTTPS MITM)
+
+The forward proxy uses mitmproxy to intercept all HTTP/HTTPS traffic transparently. Clients just set proxy environment variables — no code changes needed.
+
+```bash
+# Start the forward proxy
+uv run vcr-forward-proxy
+
+# In another terminal, route traffic through it
+export HTTP_PROXY=http://localhost:8888
+export HTTPS_PROXY=http://localhost:8888
+curl http://httpbin.org/get      # HTTP — intercepted
+curl https://httpbin.org/get     # HTTPS — intercepted via MITM
+```
+
+#### Docker (forward proxy)
+
+```yaml
+services:
+  vcr-forward-proxy:
+    image: vcr-proxy:latest
+    ports:
+      - "8888:8888"
+      - "8082:8081"
+    environment:
+      VCR_MODE: spy
+      VCR_FORWARD_PROXY_PORT: "8888"
+    volumes:
+      - ./cassettes:/app/cassettes
+    command: ["uv", "run", "vcr-forward-proxy"]
+
+  app:
+    image: my-app:latest
+    environment:
+      HTTP_PROXY: http://vcr-forward-proxy:8888
+      HTTPS_PROXY: http://vcr-forward-proxy:8888
+    depends_on:
+      - vcr-forward-proxy
+```
+
+#### HTTPS / CA Certificate
+
+For HTTPS interception, clients must trust the mitmproxy CA certificate:
+
+```bash
+# Download from admin API (if VCR_MITM_CONFDIR is set)
+curl http://localhost:8081/api/ca-cert -o mitmproxy-ca-cert.pem
+
+# Or find it in the default location after first run
+ls ~/.mitmproxy/mitmproxy-ca-cert.pem
+
+# Use with curl
+curl --cacert mitmproxy-ca-cert.pem -x http://localhost:8888 https://httpbin.org/get
+
+# Use with Python requests/httpx
+export REQUESTS_CA_BUNDLE=mitmproxy-ca-cert.pem
+export SSL_CERT_FILE=mitmproxy-ca-cert.pem
+```
+
+#### Forward Proxy Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VCR_FORWARD_PROXY_PORT` | `8888` | Forward proxy listen port |
+| `VCR_MITM_CONFDIR` | — | mitmproxy CA certificate directory |
+
+### Reverse Proxy
+
+The reverse proxy is the default mode. Clients point at VCR Proxy and use path prefixes to route to different targets.
+
 ## Modes
 
 | Mode | Behavior |
@@ -263,6 +342,7 @@ REST API on a separate port (default 8081) for runtime management.
 | `DELETE` | `/api/cassettes` | Delete all cassettes |
 | `DELETE` | `/api/cassettes/{domain}` | Delete all cassettes for a domain |
 | `DELETE` | `/api/cassettes/{domain}/{id}` | Delete a specific cassette |
+| `GET` | `/api/ca-cert` | Download mitmproxy CA certificate (forward proxy) |
 
 ### Examples
 
@@ -308,9 +388,12 @@ uv run ruff format .
 
 ```
 vcr_proxy/
-├── main.py           # Entrypoint (uvicorn target)
+├── main.py           # Reverse proxy entrypoint (uvicorn target)
 ├── app.py            # FastAPI app factory
-├── proxy.py          # Core proxy handler (record/replay/spy)
+├── proxy.py          # Reverse proxy handler (record/replay/spy)
+├── forward.py        # Forward proxy addon (mitmproxy VCRAddon)
+├── forward_main.py   # Forward proxy entrypoint
+├── recording.py      # Shared recording utilities
 ├── matching.py       # Request normalization + SHA-256 hashing
 ├── storage.py        # File-based cassette storage
 ├── route_config.py   # Per-route matching override configs
