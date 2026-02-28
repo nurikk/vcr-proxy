@@ -28,3 +28,15 @@ def test_settings_targets_mapping():
 def test_settings_cassettes_dir_default():
     settings = Settings()
     assert str(settings.cassettes_dir) == "cassettes"
+
+
+def test_forward_proxy_defaults():
+    settings = Settings()
+    assert settings.forward_proxy_port == 8888
+    assert settings.mitm_confdir is None
+
+
+def test_forward_proxy_port_from_env(monkeypatch):
+    monkeypatch.setenv("VCR_FORWARD_PROXY_PORT", "9999")
+    settings = Settings()
+    assert settings.forward_proxy_port == 9999

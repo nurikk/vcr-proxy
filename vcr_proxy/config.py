@@ -44,3 +44,6 @@ class Settings(BaseSettings):
 
     proxy_timeout: float = 30.0
     max_body_size: int = 10 * 1024 * 1024  # 10 MB
+
+    forward_proxy_port: int = 8888
+    mitm_confdir: Path | None = None
