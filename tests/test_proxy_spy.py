@@ -16,6 +16,13 @@ from vcr_proxy.models import (
 from vcr_proxy.storage import CassetteStorage
 
 
+def _default_httpx_headers() -> dict[str, str]:
+    """Get the default headers httpx sends (varies by installed codecs)."""
+    client = httpx.Client(base_url="http://test")
+    req = client.build_request("GET", "/api/v1/users", headers={"accept": "application/json"})
+    return {k: v for k, v in req.headers.items()}
+
+
 def _seed_cassette(cassettes_dir: Path) -> None:
     storage = CassetteStorage(cassettes_dir=cassettes_dir)
     cassette = Cassette(
@@ -29,13 +36,7 @@ def _seed_cassette(cassettes_dir: Path) -> None:
             method="GET",
             path="/v1/users",
             query={},
-            headers={
-                "host": "test",
-                "accept-encoding": "gzip, deflate",
-                "connection": "keep-alive",
-                "user-agent": "python-httpx/0.28.1",
-                "accept": "application/json",
-            },
+            headers=_default_httpx_headers(),
         ),
         response=RecordedResponse(
             status_code=200,
