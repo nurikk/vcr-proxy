@@ -52,6 +52,7 @@ def _normalize_headers(
 def _normalize_body(
     body: str | None,
     content_type: str | None,
+    ignore_body_fields: list[str] | None = None,
 ) -> str | None:
     """Normalize body based on content type."""
     if body is None:
@@ -59,8 +60,12 @@ def _normalize_body(
 
     if content_type and "application/json" in content_type:
         try:
-            return _normalize_json_body(body)
-        except json.JSONDecodeError, TypeError:
+            parsed = json.loads(body)
+            if ignore_body_fields and isinstance(parsed, dict):
+                for field in ignore_body_fields:
+                    parsed.pop(field, None)
+            return json.dumps(parsed, sort_keys=True, separators=(",", ":"))
+        except (json.JSONDecodeError, TypeError):
             return body
 
     if content_type and "application/x-www-form-urlencoded" in content_type:
@@ -87,7 +92,11 @@ def compute_matching_key(
             ignore_headers=ignore_headers,
             route_ignore=route_ignore.headers if route_ignore else None,
         ),
-        body=_normalize_body(request.body, request.content_type),
+        body=_normalize_body(
+            request.body,
+            request.content_type,
+            ignore_body_fields=route_ignore.body_fields if route_ignore else None,
+        ),
     )
 
 

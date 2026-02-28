@@ -57,9 +57,12 @@ class VCRAddon:
             headers=headers,
             body=body,
         )
+        route_override = self.route_config_manager.load(domain, recorded_req.method, path)
+        route_ignore = route_override.ignore if route_override else None
         matching_key = compute_matching_key(
             recorded_req,
             ignore_headers=self.settings.always_ignore_headers,
+            route_ignore=route_ignore,
         )
 
         if self.mode == ProxyMode.RECORD:

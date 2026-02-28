@@ -35,6 +35,9 @@ line-length = 99
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+[project.entry-points."pytest11"]
+vcr-proxy = "vcr_proxy.pytest_plugin"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

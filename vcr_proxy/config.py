@@ -16,6 +16,7 @@ ALWAYS_IGNORED_HEADERS_DEFAULT: frozenset[str] = frozenset(
         "x-trace-id",
         "traceparent",
         "tracestate",
+        "content-length",
     }
 )
 

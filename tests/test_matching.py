@@ -1,5 +1,7 @@
 # tests/test_matching.py
-from vcr_proxy.matching import compute_hash, compute_matching_key
+import json
+
+from vcr_proxy.matching import _normalize_body, compute_hash, compute_matching_key
 from vcr_proxy.models import RecordedRequest
 
 
@@ -112,3 +114,35 @@ def test_hash_different_for_different_keys():
     key_a = compute_matching_key(_make_request(path="/a"))
     key_b = compute_matching_key(_make_request(path="/b"))
     assert compute_hash(key_a) != compute_hash(key_b)
+
+
+def test_normalize_body_ignores_fields():
+    """body_fields strips top-level JSON keys before normalization."""
+    body = '{"login":"admin","password":"secret","action":"search"}'
+    result = _normalize_body(body, "application/json", ignore_body_fields=["login", "password"])
+    parsed = json.loads(result)
+    assert "login" not in parsed
+    assert "password" not in parsed
+    assert parsed["action"] == "search"
+
+
+def test_normalize_body_ignore_empty_list():
+    """Empty ignore list doesn't change behavior."""
+    body = '{"a":1}'
+    assert _normalize_body(body, "application/json", ignore_body_fields=[]) == _normalize_body(
+        body, "application/json"
+    )
+
+
+def test_normalize_body_ignore_nonexistent_field():
+    """Ignoring a field that doesn't exist is a no-op."""
+    body = '{"a":1}'
+    result = _normalize_body(body, "application/json", ignore_body_fields=["zzz"])
+    assert json.loads(result) == {"a": 1}
+
+
+def test_normalize_body_ignore_non_json():
+    """body_fields ignore is a no-op for non-JSON content."""
+    body = "key=val"
+    result = _normalize_body(body, "application/x-www-form-urlencoded", ignore_body_fields=["key"])
+    assert result == "key=val"
