@@ -63,7 +63,7 @@ def _normalize_body(
                 for field in ignore_body_fields:
                     parsed.pop(field, None)
             return json.dumps(parsed, sort_keys=True, separators=(",", ":"))
-        except json.JSONDecodeError, TypeError:
+        except (json.JSONDecodeError, TypeError):
             return body
 
     if content_type and "application/x-www-form-urlencoded" in content_type:
