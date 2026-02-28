@@ -97,7 +97,7 @@ class HandlerProtocol(Protocol):
     """Structural type shared by ProxyHandler and VCRAddon."""
 
     mode: ProxyMode
-    storage: CassetteStorage
+    storage: "CassetteStorage"
     stats_total: int
     stats_hits: int
     stats_misses: int
