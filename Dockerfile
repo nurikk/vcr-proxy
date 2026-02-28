@@ -1,0 +1,14 @@
+FROM python:3.14-slim
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+
+COPY vcr_proxy/ vcr_proxy/
+
+EXPOSE 8080 8081
+
+ENTRYPOINT ["uv", "run", "uvicorn", "vcr_proxy.main:app", "--host", "0.0.0.0", "--port", "8080"]
