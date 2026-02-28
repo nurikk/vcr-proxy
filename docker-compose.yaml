@@ -9,3 +9,10 @@ services:
     volumes:
       - ./cassettes:/app/cassettes
       - ./vcr-proxy.yaml:/app/vcr-proxy.yaml:ro
+
+  tests-ci:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    command: ["uv", "run", "pytest", "-v", "--tb=short"]
