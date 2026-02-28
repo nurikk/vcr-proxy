@@ -21,7 +21,12 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Run tests (Python ${{ matrix.python-version }})
-        run: docker compose run --rm --build tests-ci
+        run: |
+          if [ "${{ matrix.python-version }}" = "3.14" ]; then
+            docker compose run --rm --build tests-ci
+          else
+            docker compose run --rm --build tests-ci uv run pytest -v --tb=short --no-cov
+          fi
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
 
