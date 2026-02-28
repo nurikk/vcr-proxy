@@ -39,9 +39,7 @@ class CassetteStorage:
         filepath.write_text(cassette.model_dump_json(indent=2))
         return filepath
 
-    def lookup(
-        self, domain: str, matching_key: MatchingKey
-    ) -> Cassette | None:
+    def lookup(self, domain: str, matching_key: MatchingKey) -> Cassette | None:
         """Look up a cassette by domain and matching key."""
         domain_dir = self._domain_dir(domain)
         if not domain_dir.exists():

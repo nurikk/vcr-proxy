@@ -42,9 +42,7 @@ def sample_cassette() -> Cassette:
     )
 
 
-def test_save_creates_domain_directory(
-    storage: CassetteStorage, sample_cassette: Cassette
-):
+def test_save_creates_domain_directory(storage: CassetteStorage, sample_cassette: Cassette):
     key = MatchingKey(method="GET", path="/api/v1/users")
     storage.save(cassette=sample_cassette, matching_key=key)
 
@@ -53,9 +51,7 @@ def test_save_creates_domain_directory(
     assert len(list(domain_dir.glob("*.json"))) == 1
 
 
-def test_save_and_lookup_round_trip(
-    storage: CassetteStorage, sample_cassette: Cassette
-):
+def test_save_and_lookup_round_trip(storage: CassetteStorage, sample_cassette: Cassette):
     key = MatchingKey(method="GET", path="/api/v1/users")
     storage.save(cassette=sample_cassette, matching_key=key)
 
@@ -80,9 +76,7 @@ def test_filename_format(storage: CassetteStorage, sample_cassette: Cassette):
     assert files[0].name.startswith("POST_")
 
 
-def test_list_cassettes_for_domain(
-    storage: CassetteStorage, sample_cassette: Cassette
-):
+def test_list_cassettes_for_domain(storage: CassetteStorage, sample_cassette: Cassette):
     key = MatchingKey(method="GET", path="/api/v1/users")
     storage.save(cassette=sample_cassette, matching_key=key)
 

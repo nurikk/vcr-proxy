@@ -26,9 +26,7 @@ def _normalize_query(query: dict[str, list[str]]) -> str | None:
     """Sort query parameters by key, sort multi-values, return string."""
     if not query:
         return None
-    sorted_query = sorted(
-        (k, sorted(v)) for k, v in query.items()
-    )
+    sorted_query = sorted((k, sorted(v)) for k, v in query.items())
     return urlencode(sorted_query, doseq=True)
 
 
@@ -44,11 +42,7 @@ def _normalize_headers(
     if route_ignore:
         ignored.update(h.lower() for h in route_ignore)
 
-    filtered = {
-        k.lower(): v
-        for k, v in headers.items()
-        if k.lower() not in ignored
-    }
+    filtered = {k.lower(): v for k, v in headers.items() if k.lower() not in ignored}
     if not filtered:
         return None
     sorted_headers = sorted(filtered.items())
@@ -66,7 +60,7 @@ def _normalize_body(
     if content_type and "application/json" in content_type:
         try:
             return _normalize_json_body(body)
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError, TypeError:
             return body
 
     if content_type and "application/x-www-form-urlencoded" in content_type:
@@ -82,9 +76,7 @@ def compute_matching_key(
 ) -> MatchingKey:
     """Compute a normalized matching key for a request."""
     ignore_query = route_ignore.query_params if route_ignore else []
-    filtered_query = {
-        k: v for k, v in request.query.items() if k not in ignore_query
-    }
+    filtered_query = {k: v for k, v in request.query.items() if k not in ignore_query}
 
     return MatchingKey(
         method=request.method.upper(),

@@ -9,13 +9,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from vcr_proxy.models import ProxyMode
 
-ALWAYS_IGNORED_HEADERS_DEFAULT: frozenset[str] = frozenset({
-    "date",
-    "x-request-id",
-    "x-trace-id",
-    "traceparent",
-    "tracestate",
-})
+ALWAYS_IGNORED_HEADERS_DEFAULT: frozenset[str] = frozenset(
+    {
+        "date",
+        "x-request-id",
+        "x-trace-id",
+        "traceparent",
+        "tracestate",
+    }
+)
 
 
 class Settings(BaseSettings):

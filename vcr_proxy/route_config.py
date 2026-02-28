@@ -26,7 +26,7 @@ def _extract_body_fields(body: str | None, content_type: str | None) -> list[str
             parsed = json.loads(body)
             if isinstance(parsed, dict):
                 return sorted(parsed.keys())
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError, TypeError:
             pass
 
     if "application/x-www-form-urlencoded" in content_type:
@@ -83,9 +83,7 @@ class RouteConfigManager:
         config_path.write_text(yaml.dump(data, default_flow_style=False, sort_keys=False))
         return config_path
 
-    def load(
-        self, domain: str, method: str, path: str
-    ) -> RouteMatchingOverride | None:
+    def load(self, domain: str, method: str, path: str) -> RouteMatchingOverride | None:
         """Load a route config, if it exists."""
         config_path = self._config_path(domain, method, path)
         if not config_path.exists():
