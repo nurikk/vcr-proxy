@@ -20,6 +20,16 @@ from vcr_proxy.storage import CassetteStorage
 
 logger = structlog.get_logger()
 
+# Headers that are hop-by-hop or become invalid after httpx auto-decompresses
+# the response body. Forwarding these causes clients to attempt decompression
+# on already-decompressed data.
+_HOP_BY_HOP_HEADERS = frozenset({"content-encoding", "transfer-encoding", "content-length"})
+
+
+def _strip_hop_by_hop(headers: dict[str, str]) -> dict[str, str]:
+    """Remove hop-by-hop headers that shouldn't be forwarded by a proxy."""
+    return {k: v for k, v in headers.items() if k.lower() not in _HOP_BY_HOP_HEADERS}
+
 
 def _resolve_target(path: str, targets: dict[str, str]) -> tuple[str, str, str] | None:
     """Resolve a request path to a target URL.
@@ -48,7 +58,7 @@ def _build_recorded_response(response: httpx.Response) -> RecordedResponse:
 
     return RecordedResponse(
         status_code=response.status_code,
-        headers=dict(response.headers),
+        headers=_strip_hop_by_hop(dict(response.headers)),
         body=body_str,
         body_encoding=body_encoding,
     )
@@ -200,7 +210,7 @@ class ProxyHandler:
         self.stats_recorded += 1
 
         resp_body = response.content
-        resp_headers = dict(response.headers)
+        resp_headers = _strip_hop_by_hop(dict(response.headers))
         return response.status_code, resp_headers, resp_body
 
     def _handle_replay(self, domain, matching_key) -> tuple[int, dict[str, str], bytes]:

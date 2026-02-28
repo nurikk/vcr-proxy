@@ -21,6 +21,7 @@ from vcr_proxy.proxy import (
     ProxyHandler,
     _build_recorded_response,
     _resolve_target,
+    _strip_hop_by_hop,
     forward_request,
 )
 from vcr_proxy.route_config import RouteConfigManager
@@ -394,3 +395,139 @@ def test_decode_body_utf8():
     resp = RecordedResponse(status_code=200, headers={}, body="hello world", body_encoding="utf-8")
     result = ProxyHandler._decode_body(resp)
     assert result == b"hello world"
+
+
+# --- _strip_hop_by_hop ---
+
+
+def test_strip_hop_by_hop_removes_encoding_headers():
+    headers = {
+        "content-type": "application/json",
+        "Content-Encoding": "gzip",
+        "Transfer-Encoding": "chunked",
+        "Content-Length": "1234",
+        "x-custom": "keep",
+    }
+    result = _strip_hop_by_hop(headers)
+    assert result == {"content-type": "application/json", "x-custom": "keep"}
+
+
+def test_strip_hop_by_hop_case_insensitive():
+    headers = {"content-encoding": "br", "CONTENT-ENCODING": "gzip"}
+    result = _strip_hop_by_hop(headers)
+    assert result == {}
+
+
+def test_strip_hop_by_hop_no_encoding_headers():
+    headers = {"content-type": "text/html", "x-request-id": "abc"}
+    result = _strip_hop_by_hop(headers)
+    assert result == headers
+
+
+# --- hop-by-hop stripping in _build_recorded_response ---
+
+
+def test_build_recorded_response_strips_encoding_headers():
+    # Construct response without encoding headers first (httpx auto-decompresses
+    # if content-encoding is set at construction time), then inject them to
+    # simulate what the proxy sees after httpx has already decoded the body.
+    response = httpx.Response(
+        status_code=200,
+        headers={"content-type": "application/json"},
+        content=b'{"ok": true}',
+    )
+    response.headers["content-encoding"] = "gzip"
+    response.headers["transfer-encoding"] = "chunked"
+    response.headers["content-length"] = "99"
+
+    recorded = _build_recorded_response(response)
+    assert "content-encoding" not in recorded.headers
+    assert "transfer-encoding" not in recorded.headers
+    assert "content-length" not in recorded.headers
+    assert recorded.headers["content-type"] == "application/json"
+
+
+# --- hop-by-hop stripping in record handler ---
+
+
+async def test_handle_record_strips_encoding_headers(handler: ProxyHandler):
+    mock_response = httpx.Response(
+        200,
+        headers={"content-type": "application/json"},
+        content=b'{"id": 1}',
+    )
+    mock_response.headers["content-encoding"] = "gzip"
+    mock_response.headers["transfer-encoding"] = "chunked"
+    mock_response.headers["content-length"] = "42"
+    with patch("vcr_proxy.proxy.forward_request", new_callable=AsyncMock) as mock_fwd:
+        mock_fwd.return_value = mock_response
+        status, headers, body = await handler.handle(
+            method="GET",
+            path="/api/v1/users",
+            query_string="",
+            headers={},
+            body=None,
+        )
+    assert status == 200
+    assert "content-encoding" not in headers
+    assert "transfer-encoding" not in headers
+    assert "content-length" not in headers
+    assert headers["content-type"] == "application/json"
+
+
+# --- hop-by-hop stripping in replay handler ---
+
+
+async def test_handle_replay_strips_encoding_headers(tmp_path: Path):
+    """Cassettes recorded before the fix may still contain encoding headers.
+    Replay should return them as-is (they're already in the cassette)."""
+    settings = Settings(
+        mode=ProxyMode.REPLAY,
+        targets={"/api": "https://api.example.com"},
+        cassettes_dir=tmp_path / "cassettes",
+    )
+    storage = CassetteStorage(cassettes_dir=settings.cassettes_dir)
+    route_config_mgr = RouteConfigManager(cassettes_dir=settings.cassettes_dir)
+    http_client = httpx.AsyncClient()
+    handler = ProxyHandler(
+        settings=settings,
+        storage=storage,
+        route_config_manager=route_config_mgr,
+        http_client=http_client,
+    )
+
+    # Seed a cassette WITHOUT encoding headers (as new recordings will be)
+    cassette = Cassette(
+        meta=CassetteMeta(
+            recorded_at=datetime(2025, 1, 1, tzinfo=UTC),
+            target="https://api.example.com",
+            domain="api.example.com",
+            vcr_proxy_version="1.0.0",
+        ),
+        request=RecordedRequest(
+            method="GET",
+            path="/v1/users",
+            query={},
+            headers={},
+        ),
+        response=RecordedResponse(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            body='[{"id": 1}]',
+        ),
+    )
+    from vcr_proxy.matching import compute_matching_key
+
+    key = compute_matching_key(cassette.request, ignore_headers=settings.always_ignore_headers)
+    storage.save(cassette=cassette, matching_key=key)
+
+    status, headers, body = await handler.handle(
+        method="GET",
+        path="/api/v1/users",
+        query_string="",
+        headers={},
+        body=None,
+    )
+    assert status == 200
+    assert "content-encoding" not in headers
+    assert "transfer-encoding" not in headers
