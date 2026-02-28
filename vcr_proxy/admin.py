@@ -90,9 +90,7 @@ def create_admin_app(handler: HandlerProtocol) -> FastAPI:
         settings = getattr(handler, "settings", None)
         confdir = getattr(settings, "mitm_confdir", None) if settings else None
         if confdir is None:
-            return JSONResponse(
-                status_code=404, content={"error": "no MITM confdir configured"}
-            )
+            return JSONResponse(status_code=404, content={"error": "no MITM confdir configured"})
 
         cert_path = Path(confdir) / "mitmproxy-ca-cert.pem"
         if not cert_path.exists():
