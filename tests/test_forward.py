@@ -1,10 +1,13 @@
 """Tests for the VCR forward proxy addon."""
 
+import json
+
 from mitmproxy.test import tflow, tutils
 
 from vcr_proxy.config import Settings
 from vcr_proxy.forward import VCRAddon
 from vcr_proxy.models import ProxyMode
+from vcr_proxy.recording import REDACTED
 
 
 def _make_settings(tmp_path, mode=ProxyMode.RECORD):
@@ -214,3 +217,40 @@ def test_route_config_generated_on_record(tmp_path):
     assert routes_dir.exists()
     route_files = list(routes_dir.glob("*.yaml"))
     assert len(route_files) == 1
+
+
+# --- Sensitive header redaction ---
+
+
+def test_record_redacts_sensitive_headers_in_cassette(tmp_path):
+    """Sensitive request and response headers are redacted in the stored cassette."""
+    addon = VCRAddon(_make_settings(tmp_path, ProxyMode.RECORD))
+    flow = _make_flow(
+        request_headers={
+            "authorization": "Bearer secret-token",
+            "content-type": "application/json",
+        },
+    )
+    addon.request(flow)
+
+    # Simulate upstream response with a sensitive header
+    flow.response = tutils.tresp(content=b'{"ok":true}', status_code=200)
+    flow.response.headers.clear()
+    flow.response.headers["content-type"] = "application/json"
+    flow.response.headers["set-cookie"] = "session=abc123"
+    addon.response(flow)
+
+    assert addon.stats_recorded == 1
+    cassette_dir = tmp_path / "cassettes" / "api.example.com"
+    cassette_files = list(cassette_dir.glob("*.json"))
+    assert len(cassette_files) == 1
+    cassette = json.loads(cassette_files[0].read_text())
+
+    # Request authorization header is redacted
+    assert cassette["request"]["headers"]["authorization"] == REDACTED
+
+    # Response set-cookie header is redacted
+    assert cassette["response"]["headers"]["set-cookie"] == REDACTED
+
+    # Non-sensitive headers are preserved
+    assert cassette["response"]["headers"]["content-type"] == "application/json"

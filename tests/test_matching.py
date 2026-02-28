@@ -146,3 +146,37 @@ def test_normalize_body_ignore_non_json():
     body = "key=val"
     result = _normalize_body(body, "application/x-www-form-urlencoded", ignore_body_fields=["key"])
     assert result == "key=val"
+
+
+def test_sensitive_headers_excluded_from_matching():
+    """Requests with different Authorization values produce the same matching key
+    when authorization is in the ignore_headers set (as sensitive_headers would be)."""
+    from vcr_proxy.config import SENSITIVE_HEADERS_DEFAULT
+
+    req_a = _make_request(
+        headers={"accept": "application/json", "authorization": "Bearer token-A"},
+    )
+    req_b = _make_request(
+        headers={"accept": "application/json", "authorization": "Bearer token-B"},
+    )
+    key_a = compute_matching_key(req_a, ignore_headers=SENSITIVE_HEADERS_DEFAULT)
+    key_b = compute_matching_key(req_b, ignore_headers=SENSITIVE_HEADERS_DEFAULT)
+    assert key_a == key_b
+
+
+def test_sensitive_headers_not_in_matching_key_headers():
+    """Sensitive headers should not appear in the matching key headers string."""
+    from vcr_proxy.config import SENSITIVE_HEADERS_DEFAULT
+
+    req = _make_request(
+        headers={
+            "accept": "application/json",
+            "authorization": "Bearer secret",
+            "x-api-key": "my-key",
+        },
+    )
+    key = compute_matching_key(req, ignore_headers=SENSITIVE_HEADERS_DEFAULT)
+    assert key.headers is not None
+    assert "authorization" not in key.headers
+    assert "x-api-key" not in key.headers
+    assert "accept" in key.headers

@@ -14,7 +14,7 @@ from vcr_proxy.models import (
     ProxyMode,
     RecordedResponse,
 )
-from vcr_proxy.recording import build_recorded_request, is_text_content
+from vcr_proxy.recording import build_recorded_request, is_text_content, redact_headers
 from vcr_proxy.route_config import RouteConfigManager
 from vcr_proxy.storage import CassetteStorage
 
@@ -46,7 +46,10 @@ def _resolve_target(path: str, targets: dict[str, str]) -> tuple[str, str, str] 
     return None
 
 
-def _build_recorded_response(response: httpx.Response) -> RecordedResponse:
+def _build_recorded_response(
+    response: httpx.Response,
+    sensitive_headers: frozenset[str] = frozenset(),
+) -> RecordedResponse:
     """Build a RecordedResponse from an httpx response."""
     content_type = response.headers.get("content-type")
     if is_text_content(content_type):
@@ -56,9 +59,12 @@ def _build_recorded_response(response: httpx.Response) -> RecordedResponse:
         body_str = base64.b64encode(response.content).decode("ascii")
         body_encoding = "base64"
 
+    headers = _strip_hop_by_hop(dict(response.headers))
+    headers = redact_headers(headers, sensitive_headers)
+
     return RecordedResponse(
         status_code=response.status_code,
-        headers=_strip_hop_by_hop(dict(response.headers)),
+        headers=headers,
         body=body_str,
         body_encoding=body_encoding,
     )
@@ -126,14 +132,21 @@ class ProxyHandler:
 
         target_url, domain, remaining_path = resolved
 
-        recorded_req = build_recorded_request(method, remaining_path, query_string, headers, body)
+        recorded_req = build_recorded_request(
+            method,
+            remaining_path,
+            query_string,
+            headers,
+            body,
+            sensitive_headers=self.settings.sensitive_headers,
+        )
         route_override = self.route_config_manager.load(
             domain, recorded_req.method, remaining_path
         )
         route_ignore = route_override.ignore if route_override else None
         matching_key = compute_matching_key(
             recorded_req,
-            ignore_headers=self.settings.always_ignore_headers,
+            ignore_headers=self.settings.always_ignore_headers | self.settings.sensitive_headers,
             route_ignore=route_ignore,
         )
 
@@ -194,7 +207,9 @@ class ProxyHandler:
                 b'{"error": "target unreachable"}',
             )
 
-        recorded_resp = _build_recorded_response(response)
+        recorded_resp = _build_recorded_response(
+            response, sensitive_headers=self.settings.sensitive_headers
+        )
         cassette = Cassette(
             meta=CassetteMeta(
                 recorded_at=datetime.now(UTC),

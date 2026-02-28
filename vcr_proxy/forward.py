@@ -54,12 +54,13 @@ class VCRAddon:
             query_string=query_string,
             headers=headers,
             body=body,
+            sensitive_headers=self.settings.sensitive_headers,
         )
         route_override = self.route_config_manager.load(domain, recorded_req.method, path)
         route_ignore = route_override.ignore if route_override else None
         matching_key = compute_matching_key(
             recorded_req,
-            ignore_headers=self.settings.always_ignore_headers,
+            ignore_headers=self.settings.always_ignore_headers | self.settings.sensitive_headers,
             route_ignore=route_ignore,
         )
 
@@ -120,6 +121,7 @@ class VCRAddon:
             status_code=flow.response.status_code,
             headers=dict(flow.response.headers),
             body=flow.response.content,
+            sensitive_headers=self.settings.sensitive_headers,
         )
 
         target_url = f"{flow.request.scheme}://{domain}"
