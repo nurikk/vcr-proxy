@@ -1,7 +1,9 @@
 from vcr_proxy.recording import (
+    REDACTED,
     build_recorded_request,
     build_recorded_response_from_raw,
     is_text_content,
+    redact_headers,
 )
 
 
@@ -88,3 +90,24 @@ def test_build_recorded_response_from_raw_no_body():
         body=None,
     )
     assert resp.body is None
+
+
+def test_redact_headers_replaces_sensitive():
+    headers = {"authorization": "Bearer token123", "content-type": "application/json"}
+    sensitive = frozenset({"authorization"})
+    result = redact_headers(headers, sensitive)
+    assert result["authorization"] == REDACTED
+    assert result["content-type"] == "application/json"
+
+
+def test_redact_headers_case_insensitive():
+    headers = {"Authorization": "Bearer xyz"}
+    sensitive = frozenset({"authorization"})
+    result = redact_headers(headers, sensitive)
+    assert result["Authorization"] == REDACTED
+
+
+def test_redact_headers_empty_sensitive_set():
+    headers = {"authorization": "Bearer xyz"}
+    result = redact_headers(headers, frozenset())
+    assert result["authorization"] == "Bearer xyz"
