@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import base64
 from datetime import UTC, datetime
-from urllib.parse import parse_qs
 
 import httpx
 import structlog
@@ -15,9 +14,9 @@ from vcr_proxy.models import (
     Cassette,
     CassetteMeta,
     ProxyMode,
-    RecordedRequest,
     RecordedResponse,
 )
+from vcr_proxy.recording import build_recorded_request, is_text_content
 from vcr_proxy.route_config import RouteConfigManager
 from vcr_proxy.storage import CassetteStorage
 
@@ -39,54 +38,10 @@ def _resolve_target(path: str, targets: dict[str, str]) -> tuple[str, str, str] 
     return None
 
 
-def _is_text_content(content_type: str | None) -> bool:
-    if content_type is None:
-        return True
-    text_types = (
-        "application/json",
-        "text/",
-        "application/xml",
-        "application/x-www-form-urlencoded",
-    )
-    return any(t in content_type for t in text_types)
-
-
-def _build_recorded_request(
-    method: str,
-    path: str,
-    query_string: str,
-    headers: dict[str, str],
-    body: bytes | None,
-) -> RecordedRequest:
-    """Build a RecordedRequest from raw HTTP components."""
-    content_type = headers.get("content-type")
-    query = parse_qs(query_string, keep_blank_values=True) if query_string else {}
-
-    if body and _is_text_content(content_type):
-        body_str = body.decode("utf-8", errors="replace")
-        body_encoding = "utf-8"
-    elif body:
-        body_str = base64.b64encode(body).decode("ascii")
-        body_encoding = "base64"
-    else:
-        body_str = None
-        body_encoding = "utf-8"
-
-    return RecordedRequest(
-        method=method.upper(),
-        path=path,
-        query=query,
-        headers={k.lower(): v for k, v in headers.items()},
-        body=body_str,
-        body_encoding=body_encoding,
-        content_type=content_type,
-    )
-
-
 def _build_recorded_response(response: httpx.Response) -> RecordedResponse:
     """Build a RecordedResponse from an httpx response."""
     content_type = response.headers.get("content-type")
-    if _is_text_content(content_type):
+    if is_text_content(content_type):
         body_str = response.text
         body_encoding = "utf-8"
     else:
@@ -163,7 +118,7 @@ class ProxyHandler:
 
         target_url, domain, remaining_path = resolved
 
-        recorded_req = _build_recorded_request(method, remaining_path, query_string, headers, body)
+        recorded_req = build_recorded_request(method, remaining_path, query_string, headers, body)
         matching_key = compute_matching_key(
             recorded_req,
             ignore_headers=self.settings.always_ignore_headers,
