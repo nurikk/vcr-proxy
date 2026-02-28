@@ -111,3 +111,39 @@ def test_redact_headers_empty_sensitive_set():
     headers = {"authorization": "Bearer xyz"}
     result = redact_headers(headers, frozenset())
     assert result["authorization"] == "Bearer xyz"
+
+
+def test_build_recorded_request_redacts_sensitive_headers():
+    req = build_recorded_request(
+        method="GET",
+        path="/api/data",
+        query_string="",
+        headers={"Authorization": "Bearer secret", "Accept": "application/json"},
+        body=None,
+        sensitive_headers=frozenset({"authorization"}),
+    )
+    assert req.headers["authorization"] == REDACTED
+    assert req.headers["accept"] == "application/json"
+
+
+def test_build_recorded_request_no_redaction_when_empty():
+    req = build_recorded_request(
+        method="GET",
+        path="/api/data",
+        query_string="",
+        headers={"Authorization": "Bearer secret"},
+        body=None,
+        sensitive_headers=frozenset(),
+    )
+    assert req.headers["authorization"] == "Bearer secret"
+
+
+def test_build_recorded_response_redacts_sensitive_headers():
+    resp = build_recorded_response_from_raw(
+        status_code=200,
+        headers={"Set-Cookie": "session=abc123", "Content-Type": "application/json"},
+        body=b'{"ok": true}',
+        sensitive_headers=frozenset({"set-cookie"}),
+    )
+    assert resp.headers["Set-Cookie"] == REDACTED
+    assert resp.headers["Content-Type"] == "application/json"

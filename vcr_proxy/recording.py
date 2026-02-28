@@ -34,6 +34,7 @@ def build_recorded_request(
     query_string: str,
     headers: dict[str, str],
     body: bytes | None,
+    sensitive_headers: frozenset[str] = frozenset(),
 ) -> RecordedRequest:
     """Build a RecordedRequest from raw HTTP components."""
     content_type = headers.get("content-type")
@@ -49,11 +50,14 @@ def build_recorded_request(
         body_str = None
         body_encoding = "utf-8"
 
+    lowered = {k.lower(): v for k, v in headers.items()}
+    redacted = redact_headers(lowered, sensitive_headers)
+
     return RecordedRequest(
         method=method.upper(),
         path=path,
         query=query,
-        headers={k.lower(): v for k, v in headers.items()},
+        headers=redacted,
         body=body_str,
         body_encoding=body_encoding,
         content_type=content_type,
@@ -64,6 +68,7 @@ def build_recorded_response_from_raw(
     status_code: int,
     headers: dict[str, str],
     body: bytes | None,
+    sensitive_headers: frozenset[str] = frozenset(),
 ) -> RecordedResponse:
     """Build a RecordedResponse from raw HTTP components (no httpx dependency)."""
     content_type = headers.get("content-type")
@@ -77,9 +82,11 @@ def build_recorded_response_from_raw(
         body_str = None
         body_encoding = "utf-8"
 
+    redacted = redact_headers(headers, sensitive_headers)
+
     return RecordedResponse(
         status_code=status_code,
-        headers=headers,
+        headers=redacted,
         body=body_str,
         body_encoding=body_encoding,
     )
