@@ -18,6 +18,17 @@ ALWAYS_IGNORED_HEADERS_DEFAULT: frozenset[str] = frozenset(
     }
 )
 
+SENSITIVE_HEADERS_DEFAULT: frozenset[str] = frozenset(
+    {
+        "authorization",
+        "proxy-authorization",
+        "cookie",
+        "set-cookie",
+        "x-api-key",
+        "x-auth-token",
+    }
+)
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="VCR_")
@@ -33,6 +44,7 @@ class Settings(BaseSettings):
     cassettes_overwrite: bool = True
 
     always_ignore_headers: frozenset[str] = ALWAYS_IGNORED_HEADERS_DEFAULT
+    sensitive_headers: frozenset[str] = SENSITIVE_HEADERS_DEFAULT
 
     hook_on_start: str = ""
     hook_on_stop: str = ""

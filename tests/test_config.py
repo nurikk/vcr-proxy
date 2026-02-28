@@ -1,4 +1,4 @@
-from vcr_proxy.config import Settings
+from vcr_proxy.config import SENSITIVE_HEADERS_DEFAULT, Settings
 from vcr_proxy.models import ProxyMode
 
 
@@ -40,3 +40,17 @@ def test_forward_proxy_port_from_env(monkeypatch):
     monkeypatch.setenv("VCR_FORWARD_PROXY_PORT", "9999")
     settings = Settings()
     assert settings.forward_proxy_port == 9999
+
+
+def test_default_sensitive_headers():
+    settings = Settings()
+    assert settings.sensitive_headers == SENSITIVE_HEADERS_DEFAULT
+    assert "authorization" in settings.sensitive_headers
+    assert "cookie" in settings.sensitive_headers
+
+
+def test_sensitive_headers_from_env(monkeypatch):
+    monkeypatch.setenv("VCR_SENSITIVE_HEADERS", '["authorization","x-custom-secret"]')
+    settings = Settings()
+    assert "authorization" in settings.sensitive_headers
+    assert "x-custom-secret" in settings.sensitive_headers
