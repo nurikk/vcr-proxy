@@ -14,11 +14,16 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.14"]
     steps:
       - uses: actions/checkout@v6
 
-      - name: Run tests
-        run: docker compose run --rm tests-ci
+      - name: Run tests (Python ${{ matrix.python-version }})
+        run: docker compose run --rm --build tests-ci
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
 
   publish:
     needs: test

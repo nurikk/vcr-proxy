@@ -27,4 +27,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: test
+      args:
+        PYTHON_VERSION: ${PYTHON_VERSION:-3.14}
     command: ["uv", "run", "pytest", "-v", "--tb=short"]
