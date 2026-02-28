@@ -14,6 +14,9 @@ dependencies = [
     "mitmproxy>=11",
 ]
 
+[project.scripts]
+vcr-forward-proxy = "vcr_proxy.forward_main:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8.3",
