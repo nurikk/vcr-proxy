@@ -220,6 +220,206 @@ import os
 API_URL = os.getenv("API_BASE_URL", "https://api.example.com")
 ```
 
+## Using with pytest
+
+VCR Proxy can run entirely in-process during tests — no server process, no Docker, no network. Two approaches depending on how your application makes HTTP calls.
+
+### Reverse Proxy Mode (in-process ASGI)
+
+Best when your app uses a configurable base URL (e.g. `API_BASE_URL`). The proxy runs as a FastAPI app inside your test process via `httpx.ASGITransport`.
+
+**Step 1: Record cassettes against the real API (run once)**
+
+```bash
+# Start VCR Proxy pointing at the real API
+VCR_MODE=record uv run uvicorn vcr_proxy.main:app --port 8080
+
+# Run your tests with base URL pointed at the proxy
+API_BASE_URL=http://localhost:8080/api pytest tests/
+```
+
+Cassettes are saved to `./cassettes/`. Commit them to your repo.
+
+**Step 2: Replay in CI — no network needed**
+
+```python
+# conftest.py
+from pathlib import Path
+from collections.abc import AsyncIterator
+
+import httpx
+import pytest
+
+from vcr_proxy.app import create_app
+
+
+@pytest.fixture
+async def api_client(tmp_path: Path) -> AsyncIterator[httpx.AsyncClient]:
+    """HTTP client that replays from cassettes — no network required."""
+    app = create_app(
+        cassettes_dir=Path("cassettes"),  # committed cassettes
+        mode="replay",
+        targets={"/api": "https://api.example.com"},
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        yield client
+```
+
+```python
+# test_users.py
+async def test_list_users(api_client: httpx.AsyncClient):
+    response = await api_client.get("/api/v1/users")
+    assert response.status_code == 200
+    assert len(response.json()) > 0
+
+
+async def test_create_user(api_client: httpx.AsyncClient):
+    response = await api_client.post(
+        "/api/v1/users",
+        json={"name": "Alice"},
+    )
+    assert response.status_code == 201
+    assert response.json()["name"] == "Alice"
+```
+
+**Spy mode — record missing cassettes automatically**
+
+Use `mode="spy"` to replay known requests and record new ones on the fly. Useful during development when you're adding new API calls:
+
+```python
+@pytest.fixture
+async def api_client(tmp_path: Path) -> AsyncIterator[httpx.AsyncClient]:
+    app = create_app(
+        cassettes_dir=Path("cassettes"),
+        mode="spy",  # replay hits, record misses
+        targets={"/api": "https://api.example.com"},
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        yield client
+```
+
+**Multiple targets**
+
+Route different path prefixes to different APIs:
+
+```python
+app = create_app(
+    cassettes_dir=Path("cassettes"),
+    mode="replay",
+    targets={
+        "/api": "https://api.example.com",
+        "/auth": "https://auth.example.com",
+        "/payments": "https://payments.stripe.com",
+    },
+)
+```
+
+**Isolated cassettes per test**
+
+Use `tmp_path` for tests that should not share cassettes:
+
+```python
+@pytest.fixture
+async def isolated_client(tmp_path: Path) -> AsyncIterator[httpx.AsyncClient]:
+    app = create_app(
+        cassettes_dir=tmp_path / "cassettes",
+        mode="record",
+        targets={"/api": "https://api.example.com"},
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        yield client
+```
+
+### Forward Proxy Mode (mitmproxy addon)
+
+Best when your app uses `HTTP_PROXY`/`HTTPS_PROXY`, or you want to test code that makes requests to multiple domains without configuring path prefixes. Uses `VCRAddon` directly with mitmproxy test flows — no proxy server needed.
+
+```python
+# conftest.py
+from pathlib import Path
+
+import pytest
+
+from vcr_proxy.config import Settings
+from vcr_proxy.forward import VCRAddon
+from vcr_proxy.models import ProxyMode
+
+
+@pytest.fixture
+def vcr_addon(tmp_path: Path) -> VCRAddon:
+    settings = Settings(
+        mode=ProxyMode.SPY,
+        cassettes_dir=tmp_path / "cassettes",
+    )
+    return VCRAddon(settings)
+```
+
+```python
+# test_forward.py
+from mitmproxy.test import tflow, tutils
+
+
+def make_flow(host, path, method="GET", body=b"", headers=None):
+    """Create a mitmproxy flow for testing."""
+    hdrs = [(b"host", host.encode())]
+    for k, v in (headers or {}).items():
+        hdrs.append((k.encode(), v.encode()))
+    return tflow.tflow(
+        req=tutils.treq(
+            method=method.encode(),
+            host=host,
+            port=443,
+            scheme=b"https",
+            authority=host.encode(),
+            path=path.encode(),
+            headers=hdrs,
+            content=body,
+        )
+    )
+
+
+def test_record_and_replay(vcr_addon):
+    # Record a request
+    flow = make_flow("api.example.com", "/v1/users")
+    vcr_addon.request(flow)
+
+    # Simulate upstream response
+    flow.response = tutils.tresp(
+        content=b'[{"id": 1}]',
+        status_code=200,
+    )
+    flow.response.headers.clear()
+    flow.response.headers["content-type"] = "application/json"
+    vcr_addon.response(flow)
+
+    # Switch to replay
+    vcr_addon.mode = "replay"
+
+    # Same request now returns from cache
+    replay_flow = make_flow("api.example.com", "/v1/users")
+    vcr_addon.request(replay_flow)
+    assert replay_flow.response.status_code == 200
+    assert b'"id": 1' in replay_flow.response.content
+```
+
+### Which mode to choose?
+
+| Scenario | Mode | Why |
+|----------|------|-----|
+| App has a configurable `base_url` | Reverse proxy | Simple setup, no mitmproxy dependency in tests |
+| App hardcodes URLs / uses many domains | Forward proxy | Intercepts all traffic by domain, no URL rewriting |
+| Integration tests against a real API | Reverse proxy + spy | Auto-records missing cassettes during development |
+| Unit tests with known request/response pairs | Either | Both support pre-seeded cassettes |
+
 ## Request Matching
 
 ### Exact by Default
