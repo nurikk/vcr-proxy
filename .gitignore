@@ -8,3 +8,4 @@ dist/
 cassettes/
 .mypy_cache/
 .env
+.worktrees/
