@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from vcr_proxy.models import HandlerProtocol, ProxyMode, ProxyStats
@@ -80,5 +83,21 @@ def create_admin_app(handler: HandlerProtocol) -> FastAPI:
     async def delete_cassette(domain: str, cassette_id: str) -> DeleteResponse:
         deleted = handler.storage.delete(domain=domain, cassette_id=cassette_id)
         return DeleteResponse(deleted=1 if deleted else 0)
+
+    @admin.get("/api/ca-cert", response_model=None)
+    async def get_ca_cert():
+        """Download the mitmproxy CA certificate for HTTPS MITM."""
+        settings = getattr(handler, "settings", None)
+        confdir = getattr(settings, "mitm_confdir", None) if settings else None
+        if confdir is None:
+            return JSONResponse(
+                status_code=404, content={"error": "no MITM confdir configured"}
+            )
+
+        cert_path = Path(confdir) / "mitmproxy-ca-cert.pem"
+        if not cert_path.exists():
+            return JSONResponse(status_code=404, content={"error": "CA cert not found"})
+
+        return FileResponse(cert_path, media_type="application/x-pem-file")
 
     return admin

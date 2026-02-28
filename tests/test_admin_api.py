@@ -117,3 +117,68 @@ async def test_delete_all_cassettes(admin_client: httpx.AsyncClient, handler: Pr
     response = await admin_client.delete("/api/cassettes")
     assert response.status_code == 200
     assert response.json()["deleted"] >= 1
+
+
+async def test_ca_cert_no_confdir(admin_client: httpx.AsyncClient):
+    response = await admin_client.get("/api/ca-cert")
+    assert response.status_code == 404
+    assert "no MITM confdir" in response.json()["error"]
+
+
+async def test_ca_cert_confdir_no_file(tmp_path: Path):
+    """confdir is set but cert file doesn't exist."""
+    settings = Settings(
+        mode=ProxyMode.SPY,
+        targets={"/api": "https://api.example.com"},
+        cassettes_dir=tmp_path / "cassettes",
+        mitm_confdir=tmp_path / "mitmcerts",
+    )
+    storage = CassetteStorage(cassettes_dir=settings.cassettes_dir)
+    route_config_mgr = RouteConfigManager(cassettes_dir=settings.cassettes_dir)
+    http_client = httpx.AsyncClient()
+    handler = ProxyHandler(
+        settings=settings,
+        storage=storage,
+        route_config_manager=route_config_mgr,
+        http_client=http_client,
+    )
+    app = create_admin_app(handler)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.get("/api/ca-cert")
+    assert response.status_code == 404
+    assert "CA cert not found" in response.json()["error"]
+
+
+async def test_ca_cert_serves_file(tmp_path: Path):
+    """confdir is set and cert file exists — should serve it."""
+    confdir = tmp_path / "mitmcerts"
+    confdir.mkdir()
+    cert_path = confdir / "mitmproxy-ca-cert.pem"
+    cert_path.write_text("-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----\n")
+
+    settings = Settings(
+        mode=ProxyMode.SPY,
+        targets={"/api": "https://api.example.com"},
+        cassettes_dir=tmp_path / "cassettes",
+        mitm_confdir=confdir,
+    )
+    storage = CassetteStorage(cassettes_dir=settings.cassettes_dir)
+    route_config_mgr = RouteConfigManager(cassettes_dir=settings.cassettes_dir)
+    http_client = httpx.AsyncClient()
+    handler = ProxyHandler(
+        settings=settings,
+        storage=storage,
+        route_config_manager=route_config_mgr,
+        http_client=http_client,
+    )
+    app = create_admin_app(handler)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.get("/api/ca-cert")
+    assert response.status_code == 200
+    assert "BEGIN CERTIFICATE" in response.text
